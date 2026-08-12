@@ -30,6 +30,25 @@ renders every view. `mascot.py` guards its own render behind
 Roughly 4–5 minutes for the hero render on 4 CPU cores; the angle sheet is
 faster because it drops resolution and samples.
 
+## Exporting the model
+
+```bash
+apt-get install -y python3-numpy            # the glTF exporter needs it
+blender --background --python export_glb.py  # -> out/clawd.glb
+```
+
+`clawd.glb` is committed at the top level — 9 objects, 9,804 triangles, 212 KB,
+glTF 2.0, loadable in three.js, `<model-viewer>`, Godot, or anything else that
+reads the format. Only the character is exported; the floor, backdrop, lights
+and camera are staging for the stills and would be unhelpful in someone else's
+scene. Modifiers are applied on export, so the Bevel that does all the rounding
+is baked into the delivered mesh rather than lost.
+
+Note the exporter fails with `ModuleNotFoundError: No module named 'numpy'`
+without that package. Blender here runs its own Python **3.12.3**, which is not
+the `python3` on `PATH` — `python3-numpy` from apt lands somewhere Blender can
+see it, but a `pip install` into a different interpreter will not.
+
 ## Animation
 
 ![Clawd idle loop](idle.gif)
