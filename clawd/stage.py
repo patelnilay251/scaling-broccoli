@@ -32,7 +32,7 @@ def _material(name, hex_code, roughness):
     return mat
 
 
-def _ensure_sun(energy=2.6, angle=0.10):
+def _ensure_sun(energy=2.0, angle=0.10):
     """A sun, not another area light, is what grounds the character.
 
     Area lamps fall off with distance, so at ~9 units from the subject they
@@ -54,7 +54,7 @@ def _ensure_sun(energy=2.6, angle=0.10):
     return sun
 
 
-def light_studio(world_strength=0.45):
+def light_studio(world_strength=0.70):
     """Bright, friendly, brand-light staging with soft shadows.
 
     The bright world does most of the lifting, so the lamps drop to a fraction
@@ -71,12 +71,26 @@ def light_studio(world_strength=0.45):
         floor.data.materials.clear()
         floor.data.materials.append(_material("GroundLight", "#e8e6dc", 0.62))
 
+    # The backdrop plane is hidden outright. It existed to catch a gradient on
+    # the dark stage; here it only creates an inconsistency -- lit to 255 while
+    # the world behind it reads ~216, so front views blew out to 37% pure white
+    # while rear views (where it is culled anyway) showed a darker void. With
+    # it gone, the world is the background in every view, and the floor plane
+    # is large enough to carry the horizon on its own.
     backdrop = bpy.data.objects.get("Backdrop")
     if backdrop is not None:
+        backdrop.hide_render = True
+        # Also relight it, so anything that re-shows the plane gets a light
+        # surface rather than mascot.py's near-black one.
         backdrop.data.materials.clear()
         backdrop.data.materials.append(
             _material("BackdropLight", "#faf9f5", 0.90))
 
+    # The world doubles as the visible background wherever the backdrop plane
+    # does not cover the frame -- which is every rear and high view, since the
+    # backdrop is hidden for those. A dim world therefore shows up as a grey
+    # void in exactly those shots, so it is kept bright and the sun (below)
+    # supplies the shadow contrast a dim world would otherwise have provided.
     world = bpy.data.worlds["World"]
     world.use_nodes = True
     bg = world.node_tree.nodes["Background"]
