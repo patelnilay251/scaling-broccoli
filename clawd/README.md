@@ -30,6 +30,55 @@ renders every view. `mascot.py` guards its own render behind
 Roughly 4–5 minutes for the hero render on 4 CPU cores; the angle sheet is
 faster because it drops resolution and samples.
 
+## Animation
+
+A seamless 48-frame idle loop — breathing bob, arm follow-through, two blinks:
+
+```bash
+apt-get install -y libegl1 libgl1-mesa-dri libglx-mesa0 libgbm1   # see below
+blender --background --python animate.py     # -> out/idle/f000.png ...
+python3 make_gif.py                          # -> idle.gif + idle.webp
+```
+
+About 8 s/frame at 512², so ~6 minutes for the loop. Motion is computed per
+frame in Python rather than keyframed: procedural sine motion is periodic by
+definition, so the loop closes seamlessly with no F-curve interpolation to
+fight. Frames are gitignored; only the assembled GIF/WebP are committed.
+
+### Animation renders in EEVEE, and why
+
+Measured here at 480² with matched settings: **EEVEE ~18 s/frame, Cycles
+~21–25 s/frame**. Effectively a tie — there is no GPU, so EEVEE rasterises
+through Mesa's llvmpipe on the same 4 cores. Speed is *not* the reason to
+pick it.
+
+The reason is noise. EEVEE is rasterised and has no Monte Carlo grain at all,
+so frames are temporally stable. Cycles' grain re-randomises every frame and
+visibly crawls during playback; the normal fix is a denoiser, which this build
+does not have. Hence EEVEE for animation, Cycles for hero stills.
+
+### EEVEE on a headless box
+
+EEVEE needs a GL context, which a headless container has no obvious way to
+provide. It works anyway because Blender ships with EGL support compiled in
+and falls back to **surfaceless EGL** — no X server and no Xvfb required. The
+libraries are not installed by default, which presents as:
+
+```
+Couldn't open libEGL.so.1: cannot open shared object file
+```
+
+Installing `libegl1 libgl1-mesa-dri libglx-mesa0 libgbm1` fixes it. Expect
+this on stderr afterwards:
+
+```
+EGL Error (0x3001): EGL_NOT_INITIALIZED ...
+EGL Error (0x3009): EGL_BAD_MATCH ...
+Managed to successfully fallback to surfaceless EGL rendering!
+```
+
+Those errors are the fallback working as designed, not a broken build.
+
 ## Proportions: hand-tuned, informed by the SVG
 
 The mascot's canonical SVG `<rect>` list is:
