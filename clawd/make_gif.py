@@ -19,6 +19,7 @@ from PIL import Image
 HERE = os.path.dirname(os.path.abspath(__file__))
 FRAMEDIR = os.environ.get("CLAWD_ANIM_OUT", os.path.join(HERE, "out", "idle"))
 FPS = float(os.environ.get("CLAWD_FPS", "24"))
+BASE = os.environ.get("CLAWD_GIF_BASE", "idle")   # output basename
 
 frames = sorted(f for f in os.listdir(FRAMEDIR) if f.endswith(".png"))
 if not frames:
@@ -27,7 +28,7 @@ if not frames:
 images = [Image.open(os.path.join(FRAMEDIR, f)).convert("RGB") for f in frames]
 duration = int(round(1000.0 / FPS))
 
-gif_path = os.path.join(HERE, "idle.gif")
+gif_path = os.path.join(HERE, f"{BASE}.gif")
 
 # One SHARED palette for every frame. Quantising each frame independently
 # shifts colours slightly frame to frame, which defeats GIF's inter-frame
@@ -50,7 +51,7 @@ quantised[0].save(
     optimize=True,
 )
 
-webp_path = os.path.join(HERE, "idle.webp")
+webp_path = os.path.join(HERE, f"{BASE}.webp")
 images[0].save(webp_path, save_all=True, append_images=images[1:],
                duration=duration, loop=0, quality=88, method=4)
 
