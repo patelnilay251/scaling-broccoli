@@ -140,6 +140,48 @@ legs collapse into a single silhouette, because they share a depth. That is
 faithful to a flat sprite and is the clearest illustration of the authored-
 depth caveat above.
 
+## The sequence
+
+One continuous 16.1s shot with a moving camera — asleep, wakes, looks around,
+walks, jumps, waves, dances, settles — composed from the same eight actions.
+
+```bash
+blender --background --python sequence.py      # -> out/sequence/f####.png
+python3 encode.py                              # -> sequence.mp4 + .webp
+```
+
+386 frames in 21.6 minutes. Preview cheaply with
+`CLAWD_SEQ_STRIDE=10`, which renders every 10th frame and so covers every beat
+and camera move for a fraction of the cost.
+
+Three things make it a sequence rather than a playlist of loops:
+
+1. **Pose blending.** At each beat change the outgoing action keeps advancing
+   *its own phase* while the incoming one starts, and the two poses cross-fade
+   over 9 frames. This is the payoff for `Rig` accumulating a pose: a pose is
+   only scalars and short lists, so `blend_pose()` is a plain lerp. Actions
+   writing straight to Blender objects would leave nothing to interpolate.
+2. **Native cadence.** Each action keeps its designed period, so a beat plays
+   however many cycles fit. The 48-frame walk over an 84-frame beat runs 1.75
+   strides *at the speed it was tuned for* rather than stretched to fill.
+3. **One stance throughout.** `set_stand()` rewrites the rest pose, so
+   switching it mid-shot would visibly jump the whole body. Every beat shares
+   `SEQ_STAND`, a compromise between the per-action values.
+
+The last beat returns to the opening framing, so a looping player cuts cleanly.
+
+### Encoding, and a trap
+
+`encode.py` writes MP4 (H.264) and animated WebP. The MP4 is muxed **through
+Blender's sequencer**, not a shell pipe, because the only ffmpeg on this box is
+Playwright's — it ships libvpx and has **no libx264 encoder and zero H.264
+decoders**. That second half is the trap: using it to verify the MP4 reports
+`Invalid data found when processing input` on a perfectly good file. Verify
+with something that can actually decode H.264 (Blender reads it back as 386
+frames, 512×512, 24fps) rather than concluding the mux failed.
+
+No ~390-frame GIF is produced: at 512px it would exceed 15MB.
+
 ## Sprite sheets
 
 ```bash
