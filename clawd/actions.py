@@ -90,6 +90,7 @@ class Rig:
         self.arm_dx = [0.0, 0.0]
         self.leg_lift = [0.0] * 4
         self.leg_swing = [0.0] * 4
+        self.leg_stretch = [0.0] * 4
 
     def torso(self, dz=0.0, dx=0.0, dy=0.0):
         self.dz += dz
@@ -116,6 +117,17 @@ class Rig:
     def leg(self, index, lift=0.0, swing=0.0):
         self.leg_lift[index] += lift
         self.leg_swing[index] += swing
+
+    def leg_planted(self, index, body_dz):
+        """Keep this foot on the ground while the hip rises with the body.
+
+        Legs are rigid boxes, so a rising body leaves two bad options:
+        translate the leg (the foot leaves the ground) or leave it (the leg
+        tears off at the hip). Stretching is the third, correct one -- the
+        poor man's IK. Without this, `jump` rendered the legs as four capsules
+        floating under an airborne body.
+        """
+        self.leg_stretch[index] += body_dz
 
     # -- write to Blender -------------------------------------------------
     def apply(self):
@@ -145,14 +157,23 @@ class Rig:
                             by + (rest.y - base.y) * sxy,
                             bz + (rest.z - base.z) * sz + self.arm_dz[i])
 
-        # Legs stay planted: they do NOT follow torso sway. That contrast is
-        # exactly what makes a waddle read as a waddle.
+        # Legs do NOT follow torso sway -- that contrast is exactly what makes
+        # a waddle read as a waddle. Vertical follow is opt-in per action, via
+        # leg() to travel with the body or leg_planted() to stretch instead.
         for i, leg in enumerate(self.legs):
             rest = self.rest[leg.name]
-            leg.location = (rest.x,
-                            rest.y - self.leg_swing[i],
-                            rest.z + self.leg_lift[i])
-            leg.scale = self.rest_scale[leg.name]
+            rest_s = self.rest_scale[leg.name]
+            height = LEG_REST_H * rest_s.z
+            stretch = self.leg_stretch[i]
+            if abs(stretch) > 1e-6:
+                foot = rest.z - height / 2.0        # hold the foot still
+                leg.scale = (rest_s.x, rest_s.y,
+                             rest_s.z * (height + stretch) / height)
+                leg_z = foot + (height + stretch) / 2.0 + self.leg_lift[i]
+            else:
+                leg.scale = rest_s
+                leg_z = rest.z + self.leg_lift[i]
+            leg.location = (rest.x, rest.y - self.leg_swing[i], leg_z)
 
 
 # --------------------------------------------------------------------------
@@ -212,10 +233,13 @@ def act_jump(rig, p):
         rig.torso(dz=-0.13 * k)
     elif p < 0.54:                                  # airborne
         h = arc((p - 0.18) / 0.36)
-        rig.torso(dz=1.05 * h)
+        rise = 1.05 * h
+        rig.torso(dz=rise)
         rig.squash(-0.11 * h)                       # stretch in the air
         for i in range(4):
-            rig.leg(i, lift=0.34 * h)
+            # travel WITH the body, then tuck on top of that. Lifting only by
+            # the tuck left the legs floating under an airborne body.
+            rig.leg(i, lift=rise + 0.30 * h)
         rig.widen(1.0 + 0.18 * h)
     elif p < 0.72:                                  # land
         k = arc((p - 0.54) / 0.18)
@@ -253,11 +277,15 @@ def act_dance(rig, p):
     """Two-beat bounce with squash on the landings and alternating legs."""
     a = 2.0 * math.pi * p
     beat = abs(math.sin(a))                         # two peaks per loop
-    rig.torso(dz=0.26 * beat, dx=0.11 * math.sin(a))
+    rise = 0.24 * beat
+    rig.torso(dz=rise, dx=0.11 * math.sin(a))
     rig.squash(0.10 * (1.0 - beat) - 0.05 * beat)
     for i in range(4):
         lifted = (i % 2 == 0) == (math.sin(a) >= 0.0)
-        rig.leg(i, lift=0.16 * beat if lifted else 0.0)
+        if lifted:
+            rig.leg(i, lift=rise + 0.15 * beat)     # comes up with the body
+        else:
+            rig.leg_planted(i, rise)                # foot down, leg stretches
     rig.arm(0, dz=0.20 * max(0.0, math.sin(a)))
     rig.arm(1, dz=0.20 * max(0.0, -math.sin(a)))
     rig.blink(blink_at(p, (0.48,)))
@@ -306,7 +334,8 @@ def _assert_loops():
             fn(probe, phase)
             snaps.append((probe.dx, probe.dy, probe.dz, probe.squash_amt,
                           probe.eye_dx, tuple(probe.leg_lift),
-                          tuple(probe.leg_swing), tuple(probe.arm_dz)))
+                          tuple(probe.leg_swing), tuple(probe.leg_stretch),
+                          tuple(probe.arm_dz)))
         for a, b in zip(*(list(_flatten(s)) for s in snaps)):
             assert abs(a - b) < 2e-3, f"action '{name}' does not loop: {a} vs {b}"
 

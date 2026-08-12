@@ -71,6 +71,75 @@ most:
 continuous across the cycle boundary. A seam is invisible frame-by-frame and
 obvious in playback, so it is checked rather than assumed.
 
+## Action library
+
+`actions.py` holds a `Rig` plus a registry of named moves. Each action is a
+pure function of phase, so adding one is a single function plus a registry
+entry.
+
+```bash
+blender --background --python actions.py                       # render all
+CLAWD_ACTION=jump blender --background --python actions.py     # just one
+CLAWD_ANIM_OUT=out/jump CLAWD_GIF_BASE=jump python3 make_gif.py
+```
+
+| Action | Frames | |
+|---|---|---|
+| `idle` | 48 | breathing bob, arm follow-through, two blinks |
+| `walk` | 48 | four-leg wave gait with a waddle |
+| `jump` | 42 | crouch, launch, airborne arc, landing squash, settle |
+| `wave` | 40 | right claw raised and rocking |
+| `look` | 44 | eyes glance left and right across the face |
+| `dance` | 36 | two-beat bounce, alternating legs and claws |
+| `sleep` | 48 | slow deep breathing, eyes shut |
+| `turntable` | 48 | static pose, camera orbits 360° |
+
+Whole batch is ~354 frames, about 27 minutes.
+
+### Why a rig rather than a script per move
+
+Squash and stretch is the case that demands it. Body, eyes and arms are
+separate objects, so scaling the body alone slides the face out from under the
+eyes. `Rig.apply()` re-derives every attached part's position from the body's
+current scale, so squash composes with everything else for free.
+
+Legs are the other reason. They deliberately do **not** follow torso sway —
+that contrast is what makes a waddle read as a waddle. But a rigid leg under a
+*rising* body has only bad options: translate it and the foot leaves the
+ground, or leave it and the leg tears off at the hip. The first version of
+`jump` did the latter and rendered four capsules floating under an airborne
+body. So vertical follow is opt-in per action:
+
+- `rig.leg(i, lift=...)` — travels with the body (used for the airborne tuck)
+- `rig.leg_planted(i, body_dz)` — **stretches** the leg so the foot stays down
+  while the hip rises. Poor man's IK, and what `dance` uses for its planted
+  pair.
+
+`_assert_loops()` checks every registered action for seam continuity by
+comparing the accumulated pose at phase 0 against phase ~1. A seam is
+invisible frame-by-frame and glaring in playback, so it is verified rather
+than assumed.
+
+### Sampling
+
+16 EEVEE samples, not 32. Measured 4.7 s/frame against 8.1 s, for a mean
+absolute difference of **0.08/255** across 5.5% of pixels — imperceptible, and
+it halves a 350-frame batch. Resolution is *not* the lever: 320 px cost 6.7 s
+against 512 px's 8.1 s, so per-frame overhead dominates pixel count.
+
+## Angles
+
+![Eight angles](angles-sheet.png)
+
+```bash
+blender --background --python angles.py      # -> out/angles/*.png
+```
+
+Eight views in one Blender launch. Note what the side view shows: all four
+legs collapse into a single silhouette, because they share a depth. That is
+faithful to a flat sprite and is the clearest illustration of the authored-
+depth caveat above.
+
 ## Staging
 
 `stage.py` restages `mascot.py`'s scene. Import the model, then apply a setup:
