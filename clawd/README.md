@@ -140,6 +140,35 @@ legs collapse into a single silhouette, because they share a depth. That is
 faithful to a flat sprite and is the clearest illustration of the authored-
 depth caveat above.
 
+## Sprite sheets and demo page
+
+![Demo page](demo-preview.png)
+
+```bash
+python3 spritesheet.py     # -> sprites/*.png, sprites/manifest.json, demo.html
+```
+
+Packs each action's frames into one horizontal strip and writes a
+self-contained `demo.html` that plays all eight with pure CSS —
+`steps()` on `background-position`, no JavaScript, no CDN, works from
+`file://`. One image request per action and no decoder involved, which is how
+these would actually get consumed by a status-line pet, a web page, or a game
+engine.
+
+All eight strips total **2.6 MB** at 160px cells, against 19 MB for the
+equivalent GIFs.
+
+The cells are **opaque, not alpha**, and the background is not one flat colour
+— the renders contain a grey sky region (~213) above a cream floor (~240). No
+single page colour can hide the cell edges, so the demo frames them as
+deliberate rounded tiles rather than pretending they are seamless.
+
+Truly transparent sprites need a second render pass with `film_transparent`
+and the floor hidden. Worth knowing the tradeoff before reaching for it: EEVEE
+has **no shadow catcher** — that is Cycles-only — so alpha sprites lose the
+ground shadow entirely rather than keeping it over transparency. Grounding
+would have to come back as a CSS shadow.
+
 ## Staging
 
 `stage.py` restages `mascot.py`'s scene. Import the model, then apply a setup:

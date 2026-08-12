@@ -1,0 +1,47 @@
+{
+  "cell": 160,
+  "fps": 24.0,
+  "actions": {
+    "idle": {
+      "frames": 48,
+      "width": 7680,
+      "duration_ms": 2000
+    },
+    "walk": {
+      "frames": 48,
+      "width": 7680,
+      "duration_ms": 2000
+    },
+    "jump": {
+      "frames": 42,
+      "width": 6720,
+      "duration_ms": 1750
+    },
+    "wave": {
+      "frames": 40,
+      "width": 6400,
+      "duration_ms": 1667
+    },
+    "look": {
+      "frames": 44,
+      "width": 7040,
+      "duration_ms": 1833
+    },
+    "dance": {
+      "frames": 36,
+      "width": 5760,
+      "duration_ms": 1500
+    },
+    "sleep": {
+      "frames": 48,
+      "width": 7680,
+      "duration_ms": 2000
+    },
+    "turntable": {
+      "frames": 48,
+      "width": 7680,
+      "duration_ms": 2000
+    }
+  },
+  "page_bg": "#d6d5d2"
+}

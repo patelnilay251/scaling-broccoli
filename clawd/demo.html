@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<title>Clawd &mdash; action library</title>
+<style>
+  :root { --bg: #faf9f5; --ink: #141413; --accent: #d97757;
+          --muted: #6b6862; --line: #e8e6dc; }
+  body { margin: 0; padding: 56px 40px; background: var(--bg);
+         color: var(--ink);
+         font: 15px/1.6 "Lora", Georgia, serif; }
+  h1 { font: 600 32px/1.2 "Poppins", Arial, sans-serif; margin: 0 0 8px; }
+  p.sub { margin: 0 0 40px; color: var(--muted); max-width: 60ch; }
+  .grid { display: grid; gap: 26px;
+          grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+          max-width: 1120px; }
+  figure { margin: 0; text-align: center; }
+  /* The sprite cells are opaque and not one flat colour, so they are framed
+     as deliberate tiles rather than pretending to be seamless. */
+  .sprite { width: 160px; height: 160px; margin: 0 auto;
+            border-radius: 12px; overflow: hidden;
+            box-shadow: 0 1px 2px rgba(20,20,19,.10),
+                        0 6px 18px rgba(20,20,19,.07); }
+  figcaption { font: 600 12px/1 "Poppins", Arial, sans-serif;
+               margin-top: 12px; letter-spacing: .06em;
+               text-transform: uppercase; color: var(--accent); }
+  figcaption span { color: #9b978f; font-weight: 400; letter-spacing: 0; }
+  footer { margin-top: 52px; padding-top: 20px; border-top: 1px solid var(--line);
+           color: var(--muted); font-size: 13px; max-width: 70ch; }
+  code { font-family: ui-monospace, Menlo, monospace; font-size: 12px;
+         background: var(--line); padding: 1px 5px; border-radius: 4px; }
+  @keyframes play-idle { from { background-position: 0 0; } to { background-position: -7680px 0; } }
+  .sprite.idle { background-image: url('sprites/idle.png'); animation: play-idle 2.000s steps(48) infinite; }
+  @keyframes play-walk { from { background-position: 0 0; } to { background-position: -7680px 0; } }
+  .sprite.walk { background-image: url('sprites/walk.png'); animation: play-walk 2.000s steps(48) infinite; }
+  @keyframes play-jump { from { background-position: 0 0; } to { background-position: -6720px 0; } }
+  .sprite.jump { background-image: url('sprites/jump.png'); animation: play-jump 1.750s steps(42) infinite; }
+  @keyframes play-wave { from { background-position: 0 0; } to { background-position: -6400px 0; } }
+  .sprite.wave { background-image: url('sprites/wave.png'); animation: play-wave 1.667s steps(40) infinite; }
+  @keyframes play-look { from { background-position: 0 0; } to { background-position: -7040px 0; } }
+  .sprite.look { background-image: url('sprites/look.png'); animation: play-look 1.833s steps(44) infinite; }
+  @keyframes play-dance { from { background-position: 0 0; } to { background-position: -5760px 0; } }
+  .sprite.dance { background-image: url('sprites/dance.png'); animation: play-dance 1.500s steps(36) infinite; }
+  @keyframes play-sleep { from { background-position: 0 0; } to { background-position: -7680px 0; } }
+  .sprite.sleep { background-image: url('sprites/sleep.png'); animation: play-sleep 2.000s steps(48) infinite; }
+  @keyframes play-turntable { from { background-position: 0 0; } to { background-position: -7680px 0; } }
+  .sprite.turntable { background-image: url('sprites/turntable.png'); animation: play-turntable 2.000s steps(48) infinite; }
+</style>
+<h1>Clawd</h1>
+<p class="sub">8 looping actions, rendered headless in
+Blender and packed into CSS sprite strips. No JavaScript.</p>
+<div class="grid">
+  <figure><div class="sprite idle"></div><figcaption>idle <span>48f</span></figcaption></figure>
+  <figure><div class="sprite walk"></div><figcaption>walk <span>48f</span></figcaption></figure>
+  <figure><div class="sprite jump"></div><figcaption>jump <span>42f</span></figcaption></figure>
+  <figure><div class="sprite wave"></div><figcaption>wave <span>40f</span></figcaption></figure>
+  <figure><div class="sprite look"></div><figcaption>look <span>44f</span></figcaption></figure>
+  <figure><div class="sprite dance"></div><figcaption>dance <span>36f</span></figcaption></figure>
+  <figure><div class="sprite sleep"></div><figcaption>sleep <span>48f</span></figcaption></figure>
+  <figure><div class="sprite turntable"></div><figcaption>turntable <span>48f</span></figcaption></figure>
+</div>
+<footer>
+  160px cells at 24fps, driven by <code>steps()</code> on
+  <code>background-position</code> &mdash; one image request per action, no
+  decoder, no script. Cells are opaque: the renders contain both a sky and a
+  floor region, so no single page colour hides their edges, and they are framed
+  as tiles instead. Transparent sprites would need a second render pass with
+  <code>film_transparent</code>, which in EEVEE also means losing the ground
+  shadow &mdash; shadow catchers are Cycles-only.
+</footer>
