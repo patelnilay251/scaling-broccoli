@@ -32,6 +32,8 @@ faster because it drops resolution and samples.
 
 ## Animation
 
+![Clawd idle loop](idle.gif)
+
 A seamless 48-frame idle loop — breathing bob, arm follow-through, two blinks:
 
 ```bash
