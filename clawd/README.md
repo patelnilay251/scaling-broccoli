@@ -30,6 +30,35 @@ renders every view. `mascot.py` guards its own render behind
 Roughly 4–5 minutes for the hero render on 4 CPU cores; the angle sheet is
 faster because it drops resolution and samples.
 
+### Walk cycle
+
+![Clawd walk cycle](walk.gif)
+
+```bash
+blender --background --python walk.py                                  # -> out/walk/
+CLAWD_ANIM_OUT=out/walk CLAWD_GIF_BASE=walk python3 make_gif.py        # -> walk.gif
+```
+
+A sequential **wave gait**: each leg is offset a quarter cycle from its
+neighbour so a ripple travels along the row, plus two body bobs per loop, a
+lateral sway, and claw follow-through. The legs sit in a single row because
+that is what the sprite shows, and a wave suits that shape far better than a
+quadruped trot — it reads as crustacean, which is apt for a crab.
+
+Walking is in place. Translating the body would carry it out of frame in about
+two seconds and break the loop.
+
+One honest limitation: because each leg's top is buried inside the body,
+raising a leg *shortens its visible length* rather than lifting a foot clear
+of the ground. It reads as the leg retracting into the body — a legitimate
+cartoon convention, but a subtler effect than a true step. Making it stronger
+means either a larger `LIFT`, or bobbing the body in counter-phase so the
+planted legs appear to push off.
+
+`_assert_loops()` verifies numerically at import that the motion functions are
+continuous across the cycle boundary. A seam is invisible frame-by-frame and
+obvious in playback, so it is checked rather than assumed.
+
 ## Exporting the model
 
 ```bash
