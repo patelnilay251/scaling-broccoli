@@ -48,16 +48,53 @@ quadruped trot — it reads as crustacean, which is apt for a crab.
 Walking is in place. Translating the body would carry it out of frame in about
 two seconds and break the loop.
 
-One honest limitation: because each leg's top is buried inside the body,
-raising a leg *shortens its visible length* rather than lifting a foot clear
-of the ground. It reads as the leg retracting into the body — a legitimate
-cartoon convention, but a subtler effect than a true step. Making it stronger
-means either a larger `LIFT`, or bobbing the body in counter-phase so the
-planted legs appear to push off.
+Making the step legible took four changes, and the least obvious one mattered
+most:
+
+1. **A light floor.** On the original near-black stage the gap under a raised
+   foot was dark-on-dark and simply invisible. Against `#e8e6dc`, with a
+   contact shadow that separates from the lifted foot, the step reads
+   instantly. This was worth more than any animation tweak.
+2. **A three-quarter camera (32°).** A walk reads best from the side, but a
+   pure side view collapses all four legs into one silhouette because they
+   share a depth. 32° shows the wave travelling along the row *and* the
+   fore/aft swing together.
+3. **The waddle carries it, not the legs.** Raising a leg always shortens its
+   visible length by the lift amount, so with stubby legs a big lift reads as
+   retraction into the body. A taller stance fixes that and makes Clawd
+   spindly, losing proportions that are on-brand — so `STAND` stays low at
+   0.14 and the lateral sway does the work instead. For a short-legged
+   creature, a waddle *is* what walking looks like.
+4. **Bigger amplitudes.** The first pass was too timid to read at 512px.
 
 `_assert_loops()` verifies numerically at import that the motion functions are
 continuous across the cycle boundary. A seam is invisible frame-by-frame and
 obvious in playback, so it is checked rather than assumed.
+
+## Staging
+
+`stage.py` restages `mascot.py`'s scene. Import the model, then apply a setup:
+
+```python
+import mascot, stage
+stage.light_studio()
+```
+
+`light_studio()` is the bright, friendly setup used by the walk cycle:
+`#faf9f5` world, `#e8e6dc` floor, soft shadows, rim light nearly off (rim
+exists to separate a subject from a dark background; on light it only adds
+glare). The stills still use the original dark stage.
+
+Two lighting lessons are baked into it, both learned by getting them wrong:
+
+- **Emitter size can kill a shadow.** At `size >= 8` the key's shadow was so
+  diffuse it vanished and the character read as floating. The key sits at 4.0;
+  the fills stay large and soft.
+- **Area lamps cannot ground a subject at this scale.** They fall off with
+  distance, so at ~9 units they lose to a bright world and the contact shadow
+  washes out regardless of wattage — 720 W barely registered. A **sun** fixes
+  it: parallel rays, distance-independent irradiance, and `angle` controls
+  softness directly.
 
 ## Exporting the model
 
