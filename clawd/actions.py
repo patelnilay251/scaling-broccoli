@@ -118,6 +118,22 @@ class Rig:
         self.leg_lift[index] += lift
         self.leg_swing[index] += swing
 
+    # -- pose snapshots, for blending between actions --------------------
+    SCALARS = ("dx", "dy", "dz", "squash_amt", "blink_amt", "eye_dx",
+               "eye_scale")
+    VECTORS = ("arm_dz", "arm_dx", "leg_lift", "leg_swing", "leg_stretch")
+
+    def snapshot(self):
+        pose = {f: getattr(self, f) for f in self.SCALARS}
+        pose.update({f: list(getattr(self, f)) for f in self.VECTORS})
+        return pose
+
+    def load(self, pose):
+        for f in self.SCALARS:
+            setattr(self, f, pose[f])
+        for f in self.VECTORS:
+            setattr(self, f, list(pose[f]))
+
     def leg_planted(self, index, body_dz):
         """Keep this foot on the ground while the hip rises with the body.
 
@@ -182,6 +198,23 @@ class Rig:
 def arc(t):
     """0 -> 1 -> 0 over t in [0,1]; zero and flat-ish at both ends."""
     return math.sin(math.pi * max(0.0, min(1.0, t)))
+
+
+def smoothstep(t):
+    t = max(0.0, min(1.0, t))
+    return t * t * (3.0 - 2.0 * t)
+
+
+def blend_pose(a, b, t):
+    """Linear blend of two pose snapshots. Because a pose is nothing but
+    scalars and short lists, cross-fading two actions is just a lerp -- which
+    is the whole reason the rig accumulates instead of writing directly."""
+    out = {}
+    for f in Rig.SCALARS:
+        out[f] = a[f] + (b[f] - a[f]) * t
+    for f in Rig.VECTORS:
+        out[f] = [x + (y - x) * t for x, y in zip(a[f], b[f])]
+    return out
 
 
 def blink_at(phase, centres, shut=0.10):
@@ -360,52 +393,64 @@ def place_camera(az_deg, el_deg, dist):
 
 _assert_loops()
 
-stage.light_studio()
 
-scene = bpy.context.scene
-scene.render.engine = "BLENDER_EEVEE"
-# 16, not 32. Measured: 4.7s/frame vs 8.1s, for a mean absolute difference of
-# 0.08/255 across 5.5% of pixels -- imperceptible, and it halves a 350-frame
-# batch. Resolution is NOT the lever here: 320px cost 6.7s against 512px's
-# 8.1s, so per-frame overhead dominates pixel count.
-scene.eevee.taa_render_samples = 16
-scene.eevee.use_ssr = False
-scene.render.resolution_x = RES
-scene.render.resolution_y = RES
-scene.render.image_settings.file_format = "PNG"
+def setup_render(res=None, samples=16):
+    """Light stage + EEVEE at animation settings. Shared with sequence.py.
 
-selected = [ONLY] if ONLY else list(ACTIONS)
-missing = [n for n in selected if n not in ACTIONS]
-if missing:
-    sys.exit(f"unknown action(s): {missing}; known: {sorted(ACTIONS)}")
+    16 samples, not 32: measured 4.7s/frame vs 8.1s for a mean absolute
+    difference of 0.08/255 across 5.5% of pixels -- imperceptible, and it
+    halves a 350-frame batch. Resolution is NOT the lever here; 320px cost
+    6.7s against 512px's 8.1s, so per-frame overhead dominates pixel count.
+    """
+    stage.light_studio()
+    scene = bpy.context.scene
+    scene.render.engine = "BLENDER_EEVEE"
+    scene.eevee.taa_render_samples = samples
+    scene.eevee.use_ssr = False
+    scene.render.resolution_x = res or RES
+    scene.render.resolution_y = res or RES
+    scene.render.image_settings.file_format = "PNG"
+    return scene
 
-total_started = time.time()
-for name in selected:
-    pose_fn, frames, stand, cam_fn = ACTIONS[name]
-    outdir = os.path.join(HERE, "out", name)
-    os.makedirs(outdir, exist_ok=True)
 
-    rig = Rig()                                  # fresh rest pose each action
-    if stand:
-        rig.set_stand(stand)
-    place_camera(CAM_AZ, CAM_EL, CAM_DIST)
+def render_actions(names):
+    scene = setup_render()
+    total_started = time.time()
+    for name in names:
+        pose_fn, frames, stand, cam_fn = ACTIONS[name]
+        outdir = os.path.join(HERE, "out", name)
+        os.makedirs(outdir, exist_ok=True)
 
-    started = time.time()
-    print(f"[act] {name}: {frames} frames, stand={stand}", flush=True)
-    for frame in range(frames):
-        phase = frame / frames
-        rig.clear()
-        pose_fn(rig, phase)
-        rig.apply()
-        if cam_fn is not None:
-            place_camera(*cam_fn(phase))
+        rig = Rig()                              # fresh rest pose each action
+        if stand:
+            rig.set_stand(stand)
+        place_camera(CAM_AZ, CAM_EL, CAM_DIST)
 
-        scene.render.filepath = os.path.join(outdir, f"f{frame:03d}.png")
-        bpy.ops.render.render(write_still=True)
+        started = time.time()
+        print(f"[act] {name}: {frames} frames, stand={stand}", flush=True)
+        for frame in range(frames):
+            rig.clear()
+            pose_fn(rig, frame / frames)
+            rig.apply()
+            if cam_fn is not None:
+                place_camera(*cam_fn(frame / frames))
 
-    per = (time.time() - started) / frames
-    print(f"[act] {name} done: {per:.1f}s/frame, "
-          f"{(time.time() - started) / 60.0:.1f}min", flush=True)
+            scene.render.filepath = os.path.join(outdir, f"f{frame:03d}.png")
+            bpy.ops.render.render(write_still=True)
 
-print(f"[act] ALL done in {(time.time() - total_started) / 60.0:.1f}min",
-      flush=True)
+        per = (time.time() - started) / frames
+        print(f"[act] {name} done: {per:.1f}s/frame, "
+              f"{(time.time() - started) / 60.0:.1f}min", flush=True)
+
+    print(f"[act] ALL done in {(time.time() - total_started) / 60.0:.1f}min",
+          flush=True)
+
+
+# Guarded so sequence.py can import the rig and the action registry without
+# kicking off a 27-minute batch render.
+if __name__ == "__main__":
+    selected = [ONLY] if ONLY else list(ACTIONS)
+    missing = [n for n in selected if n not in ACTIONS]
+    if missing:
+        sys.exit(f"unknown action(s): {missing}; known: {sorted(ACTIONS)}")
+    render_actions(selected)
