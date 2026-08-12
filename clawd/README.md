@@ -30,31 +30,37 @@ renders every view. `mascot.py` guards its own render behind
 Roughly 4–5 minutes for the hero render on 4 CPU cores; the angle sheet is
 faster because it drops resolution and samples.
 
-## Geometry is derived, not eyeballed
+## Proportions: hand-tuned, informed by the SVG
 
-Every dimension on X and Z comes from the mascot's canonical SVG `<rect>` list:
+The mascot's canonical SVG `<rect>` list is:
 
 ```
-bdy         x=11  y=0   w=85  h=65
+bdy         x=11  y=0   w=85  h=65      -> body 1.31:1
 left-hand   x=0   y=21  w=22  h=23     right-hand  x=85  y=21  w=22  h=23
 right-eyes  x=21  y=11  w=11  h=11     left-eyes   x=75  y=11  w=11  h=11
 leg1..4     x=11, 32, 64, 85    y=60   w=11  h=26
 ```
 
-`mascot.py` scales these through a single `UNIT` constant, so the proportions
-follow from the source rather than from guesswork. Consequences worth knowing:
-the body is **1.31:1**, not the 1.5:1 it looks like by eye; the eyes are square
-and sit at **±0.635** of half-width; the arms are vertically centred at exactly
-**50%** of body height with their centres landing precisely on the body edge;
-and the four legs are a **row** with a centre gap (offsets ±16 and ±37 units),
-not a 2×2 grid.
+A version built strictly to those numbers, scaled through a single `UNIT`
+constant, is in the git history. It is more literally accurate and looks
+worse: the 1.31:1 body reads cramped once it is lit and shaded, where the
+flat sprite it came from has no shading to contend with. The committed
+proportions are therefore **hand-tuned** — a wider **1.5:1** body, with eyes
+and legs sized by eye.
+
+What is taken from the SVG and not up for debate: the eyes are **square**
+(vertical slots read as an appliance, not a creature), and the four legs form
+a **row with a centre gap**, matching both the rect list and the terminal
+sprite's bottom row `▘▘ ▝▝` — not a 2×2 grid.
+
+So: silhouette and topology follow the source, exact ratios follow the eye.
 
 ## Depth is authored, not derived
 
 **Every published reference for Clawd is front-facing.** There is no side view,
-no turnaround, no 3D source. So width and height are measured, but the depth
-axis is invented. The only two numbers in the geometry block that are pure
-authorial choice are `BODY_D` and `ARM_D`, both marked `AUTHORED` in the source.
+no turnaround, no 3D source. So width and height at least have a source to
+argue with, while the depth axis has none — `BODY_D` and the arm depth are
+pure authorial choice, marked `AUTHORED` in the source.
 
 This has a visible consequence: because all four legs sit at the same depth,
 the side view collapses them into a single silhouette. That is faithful to a

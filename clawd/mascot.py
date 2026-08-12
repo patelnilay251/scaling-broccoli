@@ -145,56 +145,52 @@ ink = material("Ink", INK, roughness=0.16, specular=0.6)
 ground = material("Ground", INK, roughness=0.30, specular=0.5)
 
 # --------------------------------------------------------------------------
-# Geometry derived from the canonical SVG <rect> list, not eyeballed:
+# Geometry. These are hand-tuned proportions, chosen by eye over the
+# SVG-derived ones because they simply read better in 3D.
 #
-#   bdy         x=11  y=0   w=85  h=65
+# For reference, the mascot's canonical SVG <rect> list is:
+#
+#   bdy         x=11  y=0   w=85  h=65        -> body 1.31:1
 #   left-hand   x=0   y=21  w=22  h=23     right-hand  x=85 y=21 w=22 h=23
 #   right-eyes  x=21  y=11  w=11  h=11     left-eyes   x=75 y=11 w=11 h=11
-#   leg1..4     x=11, 32, 64, 85    y=60   w=11  h=26  (21 below the body)
+#   leg1..4     x=11, 32, 64, 85    y=60   w=11  h=26
 #
-# X and Z are therefore measured. DEPTH (Y) is authored -- every published
-# reference is front-facing, so nothing constrains it. BODY_D and ARM_D below
-# are the only two numbers in this block that are my invention.
+# Building strictly to those numbers (see git history) produced a narrower
+# 1.31:1 body that looked cramped once lit and shaded, so the wider 1.5:1
+# body below is a deliberate departure. What IS taken from the SVG: eyes are
+# square rather than slots, and the legs are a row with a centre gap.
+#
+# DEPTH (Y) is authored regardless of which set is used -- every published
+# reference is front-facing, so nothing constrains it. BODY_D and the arm
+# depth are pure invention.
 # --------------------------------------------------------------------------
-SVG_BODY_W, SVG_BODY_H = 85.0, 65.0
-SVG_CX = 53.5                      # body centre: x=11 + 85/2
-UNIT = 2.88 / SVG_BODY_W           # one SVG unit in Blender units
-
-BODY_W = SVG_BODY_W * UNIT                    # 2.880
-BODY_H = SVG_BODY_H * UNIT                    # 2.202  -> 1.31:1, not 1.5:1
-BODY_D = 1.80                                 # AUTHORED: no reference for depth
-LEG_VISIBLE = 21.0 * UNIT                     # 0.711 showing below the body
-BODY_Z = LEG_VISIBLE + BODY_H / 2.0           # stand the legs on z=0
-FRONT = -BODY_D / 2.0
+BODY_W, BODY_D, BODY_H = 3.0, 1.8, 2.0   # 1.5:1; depth is AUTHORED
+# Body bottom must clear the ground or the overlap swallows the legs -- an
+# earlier pass left only half a leg showing.
+BODY_Z = 1.62                      # bottom lands at 0.62, top at 2.62
+FRONT = -BODY_D / 2.0              # front face plane
 
 rounded_box("Body", (BODY_W, BODY_D, BODY_H), (0.0, 0.0, BODY_Z),
-            bevel=0.40, segments=12, mat=skin)
+            bevel=0.42, segments=12, mat=skin)
 
-# arms: centres land exactly on the body edge (hand cx 11 vs body cx 53.5 =
-# 42.5 = half the body width), vertically centred at 50% of body height.
-ARM_W, ARM_H = 22.0 * UNIT, 23.0 * UNIT
-ARM_D = 0.62                                  # AUTHORED
-ARM_Z = BODY_Z + BODY_H / 2.0 - 32.5 * UNIT
+# arms: Clawd is a crab (the official emoji is the crab), so the side stubs
+# are claws, not ears.
 for sign in (-1.0, 1.0):
-    rounded_box(f"Arm{'L' if sign < 0 else 'R'}", (ARM_W, ARM_D, ARM_H),
-                (sign * BODY_W / 2.0, 0.0, ARM_Z),
-                bevel=0.18, segments=8, mat=skin)
+    rounded_box(f"Arm{'L' if sign < 0 else 'R'}", (0.74, 0.62, 0.58),
+                (sign * 1.66, 0.0, 1.44), bevel=0.18, segments=8, mat=skin)
 
-# four legs in a row, offsets +/-16 and +/-37 SVG units from centre
-LEG_W = 11.0 * UNIT
-LEG_H = LEG_VISIBLE + 0.15                    # tuck the top into the body
-for i, off in enumerate((-37.0, -16.0, 16.0, 37.0)):
-    rounded_box(f"Leg{i}", (LEG_W, LEG_W, LEG_H),
-                (off * UNIT, 0.0, LEG_H / 2.0 - 0.03),
-                bevel=LEG_W * 0.42, segments=8, mat=skin)
+# four legs in a ROW with a centre gap, matching the terminal sprite's bottom
+# row (`▘▘ ▝▝`) and the pixel reference -- not a 2x2 grid.
+for i, leg_x in enumerate((-1.02, -0.52, 0.52, 1.02)):
+    rounded_box(f"Leg{i}", (0.34, 0.34, 0.80),
+                (leg_x, 0.0, 0.36), bevel=0.15, segments=8, mat=skin)
 
-# eyes: square, 11x11, centres +/-27 units from body centre, 16.5 units down
-EYE = 11.0 * UNIT
-EYE_Z = BODY_Z + BODY_H / 2.0 - 16.5 * UNIT
+# eyes: SQUARE, per the references. Vertical slots were the single biggest
+# reason earlier passes read as an appliance instead of a creature.
 for sign in (-1.0, 1.0):
-    rounded_box(f"Eye{'L' if sign < 0 else 'R'}", (EYE, 0.14, EYE),
-                (sign * 27.0 * UNIT, FRONT, EYE_Z),
-                bevel=EYE * 0.22, segments=8, mat=ink)
+    rounded_box(f"Eye{'L' if sign < 0 else 'R'}", (0.34, 0.14, 0.34),
+                (sign * 0.85, FRONT, 2.04),
+                bevel=0.075, segments=8, mat=ink)
 
 # --------------------------------------------------------------------------
 # stage
@@ -212,7 +208,7 @@ backdrop.data.materials.append(ground)
 # --------------------------------------------------------------------------
 # three-point studio light: soft key, cool fill, warm rim for separation
 # --------------------------------------------------------------------------
-LOOK = (0.0, 0.0, 1.46)   # half the subject height, so the frame is centred
+LOOK = (0.0, 0.0, 1.45)   # half the subject height, so the frame is centred
 # Standard view transform has no highlight rolloff, so an over-hot key clips
 # to flat white instead of rolling off. Softer + dimmer + more frontal.
 area_light("Key", (-5.2, -6.4, 5.4), LOOK, energy=850.0,
@@ -234,7 +230,7 @@ world.node_tree.nodes["Background"].inputs["Strength"].default_value = 1.0
 # --------------------------------------------------------------------------
 # 70mm at 9.8 -> ~5.05-unit frame for a ~4.12-unit subject: 19% margin.
 # v2 at 11.0 was safe but left too much dead space; v1 at 85mm/9.4 clipped.
-AZ, EL, DIST = radians(10.0), radians(6.0), 9.6
+AZ, EL, DIST = radians(10.0), radians(6.0), 10.2
 cam_data = bpy.data.cameras.new("Camera")
 cam_data.lens = 70.0
 cam = bpy.data.objects.new("Camera", cam_data)
