@@ -394,6 +394,21 @@ def place_camera(az_deg, el_deg, dist):
 _assert_loops()
 
 
+def eevee_engine_id():
+    """'BLENDER_EEVEE' on 4.0/4.1; 4.2 renamed it to 'BLENDER_EEVEE_NEXT'.
+
+    Hardcoding the 4.0 name works locally but breaks the moment CI picks up a
+    newer Blender, so ask the build which ids it actually offers.
+    """
+    ids = {item.identifier for item in
+           bpy.types.Scene.bl_rna.properties["render"].fixed_type.bl_rna
+           .properties["engine"].enum_items}
+    for candidate in ("BLENDER_EEVEE", "BLENDER_EEVEE_NEXT"):
+        if candidate in ids:
+            return candidate
+    raise RuntimeError(f"no EEVEE engine found; available: {sorted(ids)}")
+
+
 def setup_render(res=None, samples=16):
     """Light stage + EEVEE at animation settings. Shared with sequence.py.
 
@@ -404,7 +419,7 @@ def setup_render(res=None, samples=16):
     """
     stage.light_studio()
     scene = bpy.context.scene
-    scene.render.engine = "BLENDER_EEVEE"
+    scene.render.engine = eevee_engine_id()
     scene.eevee.taa_render_samples = samples
     scene.eevee.use_ssr = False
     scene.render.resolution_x = res or RES

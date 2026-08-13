@@ -182,6 +182,39 @@ frames, 512×512, 24fps) rather than concluding the mux failed.
 
 No ~390-frame GIF is produced: at 512px it would exceed 15MB.
 
+## Rendering on CI
+
+`.github/workflows/render.yml` offloads rendering to parallel GitHub runners.
+Dispatch it manually with a target (`sequence` or `actions`), resolution,
+samples and shard count.
+
+This exists because a 4-core box is what forced every quality compromise here:
+512px, 16 samples, and skipping a 1080px pass. Sharded across 8 runners the
+386-frame sequence renders in a couple of minutes instead of 22, so 1080px at
+32 samples becomes the default there rather than a decision.
+
+**Why sharding is safe:** every frame's pose and camera derive purely from its
+index — nothing carries between frames — so any subset renders independently.
+Frame files use the *global* frame number, so merging shards is a plain copy.
+`CLAWD_SHARD` / `CLAWD_SHARDS` slice the frame list; the partition is
+exhaustive, disjoint, and balanced to within one frame.
+
+Two things the workflow has to get right, both learned the hard way locally:
+
+- It installs `libegl1` and the Mesa packages, not just `blender`. Without them
+  Blender cannot create a GL context on a headless runner and EEVEE is simply
+  unavailable.
+- The encode job installs Blender too, even though it renders nothing —
+  Blender's bundled ffmpeg is the only H.264 encoder available, so the MP4 mux
+  goes through its sequencer.
+
+`eevee_engine_id()` resolves the engine name at runtime because 4.0/4.1 call it
+`BLENDER_EEVEE` and 4.2 renamed it `BLENDER_EEVEE_NEXT`. Hardcoding the 4.0
+name works locally and breaks the moment a runner picks up a newer Blender.
+
+Results arrive as workflow artifacts (14-day retention). The workflow has
+`contents: read` only — it does not commit anything back.
+
 ## Sprite sheets
 
 ```bash

@@ -44,9 +44,16 @@ OUTDIR = os.environ.get("CLAWD_SEQ_OUT", os.path.join(HERE, "out", "sequence"))
 os.makedirs(OUTDIR, exist_ok=True)
 
 RES = int(os.environ.get("CLAWD_SEQ_RES", "512"))
+SAMPLES = int(os.environ.get("CLAWD_SEQ_SAMPLES", "16"))
 # STRIDE > 1 renders every Nth frame -- a cheap preview of the whole arc,
 # covering every beat and camera move for a fraction of the frames.
 STRIDE = int(os.environ.get("CLAWD_SEQ_STRIDE", "1"))
+# Sharding for parallel rendering (CI splits the shot across runners). Every
+# frame's pose and camera are computed purely from its index -- nothing carries
+# over between frames -- so any subset can be rendered independently and the
+# results merged. Filenames use the GLOBAL frame number, so merging is a copy.
+SHARD = int(os.environ.get("CLAWD_SHARD", "0"))
+SHARDS = int(os.environ.get("CLAWD_SHARDS", "1"))
 FPS = 24
 BLEND = 9                    # frames of cross-fade at each beat change
 SEQ_STAND = 0.12             # one stance for the whole shot
@@ -96,15 +103,16 @@ def camera_for(index, t):
     place_camera(az, el, dist)
 
 
-scene = actions.setup_render(res=RES)
+scene = actions.setup_render(res=RES, samples=SAMPLES)
 rig = Rig()
 rig.set_stand(SEQ_STAND)
 
 print(f"[seq] {len(BEATS)} beats, {TOTAL} frames, {TOTAL / FPS:.1f}s at {FPS}fps, "
-      f"res={RES} stand={SEQ_STAND} blend={BLEND}", flush=True)
+      f"res={RES} samples={SAMPLES} stand={SEQ_STAND} blend={BLEND} "
+      f"shard={SHARD}/{SHARDS}", flush=True)
 
 started = time.time()
-todo = list(range(0, TOTAL, STRIDE))
+todo = list(range(0, TOTAL, STRIDE))[SHARD::SHARDS]   # balanced interleave
 for count, frame in enumerate(todo):
     index, local = beat_at(frame)
     action, length, _cam = BEATS[index]
