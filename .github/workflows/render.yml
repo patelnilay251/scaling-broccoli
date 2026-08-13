@@ -1,0 +1,160 @@
+name: Render
+
+# Offloads rendering from a 4-core dev box to parallel runners.
+#
+# Locally every frame costs ~4.5s and the whole 386-frame sequence takes ~22
+# minutes, which is what forced 512px and 16 samples. Sharded across runners
+# the same shot renders in a couple of minutes, so 1080px at 32 samples stops
+# being a decision and just becomes the default here.
+#
+# Sharding is safe because every frame's pose and camera derive purely from its
+# index -- nothing carries between frames -- so any subset renders
+# independently and the parts merge by filename.
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: "What to render"
+        type: choice
+        options: [sequence, actions]
+        default: sequence
+      resolution:
+        description: "Square resolution in px"
+        default: "1080"
+      samples:
+        description: "EEVEE TAA samples"
+        default: "32"
+      shards:
+        description: "Parallel runners (sequence target only)"
+        default: "8"
+
+# A second dispatch supersedes the first rather than queueing behind it.
+concurrency:
+  group: render-${{ github.ref }}-${{ inputs.target }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.plan.outputs.matrix }}
+    steps:
+      - id: plan
+        env:
+          TARGET: ${{ inputs.target }}
+          SHARDS: ${{ inputs.shards }}
+        run: |
+          python3 - >> "$GITHUB_OUTPUT" <<'PY'
+          import json, os
+          target = os.environ["TARGET"]
+          if target == "sequence":
+              items = [str(i) for i in range(int(os.environ["SHARDS"]))]
+          else:
+              # one runner per action; no frame sharding needed
+              items = ["idle", "walk", "jump", "wave", "look",
+                       "dance", "sleep", "turntable"]
+          print("matrix=" + json.dumps(items))
+          PY
+
+  render:
+    needs: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false          # one bad shard should not bin the others
+      matrix:
+        item: ${{ fromJSON(needs.plan.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Blender and the headless GL stack
+        run: |
+          sudo apt-get update -qq
+          # libegl1 + Mesa are what let EEVEE run with no display: Blender
+          # falls back to surfaceless EGL. Without them it cannot make a GL
+          # context and EEVEE is simply unavailable.
+          sudo apt-get install -y -qq --no-install-recommends \
+            blender libegl1 libgl1-mesa-dri libglx-mesa0 libgbm1 \
+            python3-numpy
+          blender --version | head -1
+
+      - name: Render
+        working-directory: clawd
+        env:
+          ITEM: ${{ matrix.item }}
+          TARGET: ${{ inputs.target }}
+          SHARDS: ${{ inputs.shards }}
+          RES: ${{ inputs.resolution }}
+          SAMPLES: ${{ inputs.samples }}
+        run: |
+          set -euo pipefail
+          if [ "$TARGET" = "sequence" ]; then
+            CLAWD_SHARD="$ITEM" CLAWD_SHARDS="$SHARDS" \
+            CLAWD_SEQ_RES="$RES" CLAWD_SEQ_SAMPLES="$SAMPLES" \
+              blender --background --python sequence.py
+          else
+            CLAWD_ACTION="$ITEM" CLAWD_ANIM_RES="$RES" \
+              blender --background --python actions.py
+          fi
+          find out -name '*.png' | wc -l | sed 's/^/frames rendered: /'
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: frames-${{ inputs.target }}-${{ matrix.item }}
+          path: clawd/out/**/*.png
+          retention-days: 14
+          if-no-files-found: error
+
+  encode:
+    needs: [plan, render]
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Collect every shard into one tree
+        uses: actions/download-artifact@v4
+        with:
+          pattern: frames-${{ inputs.target }}-*
+          merge-multiple: true      # shards share a directory; names are global
+          path: clawd/out
+
+      - name: Install Blender and Pillow
+        run: |
+          sudo apt-get update -qq
+          # Blender is needed even here: it is the only ffmpeg on a runner with
+          # an H.264 encoder available to us, so the MP4 mux goes through its
+          # sequencer rather than a shell pipe.
+          sudo apt-get install -y -qq --no-install-recommends blender
+          python3 -m pip install --quiet --disable-pip-version-check pillow
+
+      - name: Encode
+        working-directory: clawd
+        env:
+          TARGET: ${{ inputs.target }}
+        run: |
+          set -euo pipefail
+          if [ "$TARGET" = "sequence" ]; then
+            echo "collected $(ls out/sequence/*.png | wc -l) frames"
+            python3 encode.py
+          else
+            for a in idle walk jump wave look dance sleep turntable; do
+              [ -d "out/$a" ] || continue
+              CLAWD_ANIM_OUT="out/$a" CLAWD_GIF_BASE="$a" python3 make_gif.py
+            done
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: render-${{ inputs.target }}-${{ inputs.resolution }}px
+          path: |
+            clawd/sequence.mp4
+            clawd/sequence.webp
+            clawd/*.gif
+            clawd/*.webp
+          retention-days: 14
+          if-no-files-found: error
